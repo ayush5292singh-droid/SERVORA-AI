@@ -2730,26 +2730,52 @@ initialize();
 // HELPER REAL OPENSTREETMAP
 // =============================
 
-let helperRealMap;
+let helperRealMap = null;
 
 function initRealMap() {
+
     const mapElement = document.getElementById("mapView");
 
-    if (!mapElement || typeof L === "undefined") return;
+    // Stop if map container doesn't exist
+    if (!mapElement) {
+        console.log("HELPER: mapView not found");
+        return;
+    }
 
-    // Don't create the map twice
+    // Stop if Leaflet library didn't load
+    if (typeof L === "undefined") {
+        console.log("HELPER: Leaflet not loaded");
+        return;
+    }
+
+    // Prevent creating the map twice
     if (helperRealMap) {
         helperRealMap.invalidateSize();
         return;
     }
 
-    helperRealMap = L.map("mapView").setView([26.8467, 80.9462], 13);
+    // Create real map
+    helperRealMap = L.map(mapElement).setView(
+        [26.8467, 80.9462],
+        13
+    );
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(helperRealMap);
+    // Add OpenStreetMap
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            maxZoom: 19,
+            attribution: "© OpenStreetMap contributors"
+        }
+    ).addTo(helperRealMap);
+
+    console.log("HELPER: Real map loaded");
 }
-document.addEventListener("DOMContentLoaded", function () {
-    initRealMap();
+
+
+// Start after the page is completely loaded
+window.addEventListener("load", function () {
+    setTimeout(function () {
+        initRealMap();
+    }, 300);
 });
