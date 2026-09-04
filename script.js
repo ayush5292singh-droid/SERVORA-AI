@@ -2750,4 +2750,6 @@ function initRealMap() {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(helperRealMap);
 }
-initRealMap();
+document.addEventListener("DOMContentLoaded", function () {
+    initRealMap();
+});
