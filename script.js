@@ -2726,3 +2726,28 @@ function initialize(){
 
 
 initialize();
+// =============================
+// HELPER REAL OPENSTREETMAP
+// =============================
+
+let helperRealMap;
+
+function initRealMap() {
+    const mapElement = document.getElementById("mapView");
+
+    if (!mapElement || typeof L === "undefined") return;
+
+    // Don't create the map twice
+    if (helperRealMap) {
+        helperRealMap.invalidateSize();
+        return;
+    }
+
+    helperRealMap = L.map("mapView").setView([26.8467, 80.9462], 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(helperRealMap);
+}
+initRealMap();
