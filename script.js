@@ -1420,8 +1420,7 @@ function renderDiscover(){
 
     }else{
 
-        document.getElementById("mapView")
-            .classList.add("hidden");
+        
 
         document.getElementById("discoverList")
             .classList.remove("hidden");
