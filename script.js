@@ -1,7 +1,7 @@
 /* =========================================================
    HELPER 5.0
-   LOCAL MVP ENGINE
-   NO EXTERNAL API REQUIRED
+   REAL OPENSTREETMAP + LEAFLET
+   LOCAL MVP
    ========================================================= */
 
 
@@ -27,6 +27,13 @@ const CATEGORIES = [
 ];
 
 
+/*
+    These are DEMO helpers.
+
+    Their map coordinates are approximate demo locations
+    around Lucknow. They are not exact home addresses.
+*/
+
 const SAMPLE_HELPERS = [
 
 {
@@ -43,6 +50,8 @@ services:"Tap repair, leakage, bathroom fittings",
 source:"Family recommendation",
 notes:"Reliable for plumbing work.",
 available:true,
+lat:26.8840,
+lng:80.9440,
 distance:1.2,
 favourite:true,
 reviews:38,
@@ -65,6 +74,8 @@ services:"Wiring, switches, fans and lights",
 source:"Neighbour recommendation",
 notes:"Good response time.",
 available:true,
+lat:26.8785,
+lng:80.9475,
 distance:2.1,
 favourite:false,
 reviews:62,
@@ -87,6 +98,8 @@ services:"Furniture repair, shelves and doors",
 source:"Friend",
 notes:"",
 available:false,
+lat:26.8905,
+lng:80.9580,
 distance:3.4,
 favourite:false,
 reviews:24,
@@ -109,6 +122,8 @@ services:"AC service, cooling issue and installation",
 source:"Local recommendation",
 notes:"Excellent service.",
 available:true,
+lat:26.8870,
+lng:80.9360,
 distance:1.8,
 favourite:true,
 reviews:87,
@@ -131,6 +146,8 @@ services:"Bike repair, servicing and diagnostics",
 source:"Friend",
 notes:"",
 available:true,
+lat:26.8700,
+lng:80.9560,
 distance:2.8,
 favourite:false,
 reviews:43,
@@ -219,6 +236,10 @@ emergency:false
 ];
 
 
+/* =========================================================
+   STATE
+   ========================================================= */
+
 let helpers =
 JSON.parse(localStorage.getItem("helper_helpers")) ||
 SAMPLE_HELPERS;
@@ -232,10 +253,22 @@ JSON.parse(localStorage.getItem("helper_professionals")) ||
 [];
 
 let currentPage="home";
+
 let helperCategoryFilter="all";
+
 let discoverView="map";
-let mapScale=1;
+
 let selectedReviewRating=0;
+
+let helperRealMap=null;
+
+let userMarker=null;
+
+let userCircle=null;
+
+let userPosition=null;
+
+let helperMarkers=[];
 
 
 /* =========================================================
@@ -251,6 +284,7 @@ function saveHelpers(){
 
 }
 
+
 function saveReminders(){
 
     localStorage.setItem(
@@ -259,6 +293,7 @@ function saveReminders(){
     );
 
 }
+
 
 function saveProfessionals(){
 
@@ -271,7 +306,7 @@ function saveProfessionals(){
 
 
 /* =========================================================
-   SECURITY / HTML
+   SECURITY
    ========================================================= */
 
 function escapeHTML(value){
@@ -292,17 +327,22 @@ function escapeHTML(value){
 
 function getCategory(name){
 
-    return CATEGORIES.find(c=>c.name===name) ||
-        {name:"Other",icon:"✦"};
+    return CATEGORIES.find(
+        c=>c.name===name
+    ) || {
+        name:"Other",
+        icon:"✦"
+    };
 
 }
 
 
 function getInitials(name){
 
-    return name
+    return String(name||"")
         .split(" ")
         .map(x=>x[0])
+        .filter(Boolean)
         .slice(0,2)
         .join("")
         .toUpperCase();
@@ -312,9 +352,16 @@ function getInitials(name){
 
 function stars(rating){
 
-    const r=Math.round(Number(rating));
+    const r=Math.max(
+        0,
+        Math.min(
+            5,
+            Math.round(Number(rating)||0)
+        )
+    );
 
-    return "★".repeat(r)+"☆".repeat(5-r);
+    return "★".repeat(r)+
+           "☆".repeat(5-r);
 
 }
 
@@ -322,6 +369,8 @@ function stars(rating){
 function showToast(message){
 
     const toast=document.getElementById("toast");
+
+    if(!toast)return;
 
     toast.textContent=message;
 
@@ -342,16 +391,19 @@ function showToast(message){
    NAVIGATION
    ========================================================= */
 
-document.querySelectorAll(".nav-btn")
-.forEach(button=>{
+function setupNavigation(){
 
-    button.addEventListener("click",()=>{
+    document.querySelectorAll(".nav-btn")
+    .forEach(button=>{
 
-        showPage(button.dataset.page);
+        button.addEventListener(
+            "click",
+            ()=>showPage(button.dataset.page)
+        );
 
     });
 
-});
+}
 
 
 function showPage(page){
@@ -359,13 +411,19 @@ function showPage(page){
     currentPage=page;
 
     document.querySelectorAll(".page")
-    .forEach(p=>p.classList.remove("active"));
+    .forEach(p=>{
+        p.classList.remove("active");
+    });
 
-    const target=document.getElementById("page-"+page);
+
+    const target=
+        document.getElementById("page-"+page);
+
 
     if(target){
         target.classList.add("active");
     }
+
 
     document.querySelectorAll(".nav-btn")
     .forEach(button=>{
@@ -382,21 +440,33 @@ function showPage(page){
         renderHome();
     }
 
+
     if(page==="discover"){
+
         renderDiscover();
+
+        setTimeout(()=>{
+            initRealMap();
+            invalidateRealMap();
+        },100);
+
     }
+
 
     if(page==="helpers"){
         renderHelpers();
     }
 
+
     if(page==="marketplace"){
         renderMarketplace();
     }
 
+
     if(page==="bookings"){
         renderReminders();
     }
+
 
     if(page==="profile"){
         renderProfile();
@@ -414,34 +484,58 @@ function showPage(page){
 
 function renderHome(){
 
-    document.getElementById("statHelpers")
-        .textContent=helpers.length;
+    const statHelpers=
+        document.getElementById("statHelpers");
 
-    document.getElementById("statFav")
-        .textContent=
-        helpers.filter(h=>h.favourite).length;
+    const statFav=
+        document.getElementById("statFav");
 
-    document.getElementById("statMarketplace")
-        .textContent=
-        PROFESSIONALS.length+
-        userProfessionals.length;
+    const statMarketplace=
+        document.getElementById("statMarketplace");
+
+    const statRating=
+        document.getElementById("statRating");
 
 
-    if(helpers.length){
+    if(statHelpers){
+        statHelpers.textContent=helpers.length;
+    }
 
-        const avg=
-            helpers.reduce(
-                (sum,h)=>sum+Number(h.rating),
-                0
-            )/helpers.length;
 
-        document.getElementById("statRating")
-            .textContent=avg.toFixed(1);
+    if(statFav){
+        statFav.textContent=
+            helpers.filter(h=>h.favourite).length;
+    }
 
-    }else{
 
-        document.getElementById("statRating")
-            .textContent="—";
+    if(statMarketplace){
+
+        statMarketplace.textContent=
+            PROFESSIONALS.length+
+            userProfessionals.length;
+
+    }
+
+
+    if(statRating){
+
+        if(helpers.length){
+
+            const avg=
+                helpers.reduce(
+                    (sum,h)=>
+                    sum+Number(h.rating||0),
+                    0
+                )/helpers.length;
+
+            statRating.textContent=
+                avg.toFixed(1);
+
+        }else{
+
+            statRating.textContent="—";
+
+        }
 
     }
 
@@ -449,31 +543,47 @@ function renderHome(){
     renderQuickCategories();
 
 
-    const recent=[...helpers]
-        .sort((a,b)=>b.created-a.created)
+    const recent=
+        [...helpers]
+        .sort((a,b)=>
+            Number(b.created)-Number(a.created)
+        )
         .slice(0,6);
 
 
-    document.getElementById("homeHelpers")
-        .innerHTML=
-        recent.length
-        ?recent.map(helperCard).join("")
-        :emptyState(
-            "No helpers yet",
-            "Add your first trusted helper."
-        );
+    const homeHelpers=
+        document.getElementById("homeHelpers");
+
+
+    if(homeHelpers){
+
+        homeHelpers.innerHTML=
+            recent.length
+            ?recent.map(helperCard).join("")
+            :emptyState(
+                "No helpers yet",
+                "Add your first trusted helper."
+            );
+
+    }
 
 }
 
 
 function renderQuickCategories(){
 
-    document.getElementById("quickCategories")
-        .innerHTML=
+    const container=
+        document.getElementById("quickCategories");
+
+    if(!container)return;
+
+
+    container.innerHTML=
         CATEGORIES.slice(0,6)
         .map(c=>`
 
-            <button class="category-card"
+            <button
+                class="category-card"
                 onclick="searchCategory('${escapeHTML(c.name)}')">
 
                 <div class="cat-icon">
@@ -496,14 +606,19 @@ function searchCategory(category){
 
     showPage("discover");
 
+
     setTimeout(()=>{
 
-        document.getElementById("filterCategory")
-            .value=category;
+        const select=
+            document.getElementById("filterCategory");
+
+        if(select){
+            select.value=category;
+        }
 
         renderDiscover();
 
-    },50);
+    },100);
 
 }
 
@@ -514,7 +629,9 @@ function searchCategory(category){
 
 function helperCard(h){
 
-    const category=getCategory(h.category);
+    const category=
+        getCategory(h.category);
+
 
     return `
 
@@ -523,7 +640,9 @@ function helperCard(h){
         <div class="card-top">
 
             <div class="helper-avatar">
-                ${escapeHTML(getInitials(h.name))}
+                ${escapeHTML(
+                    getInitials(h.name)
+                )}
             </div>
 
             <div>
@@ -554,7 +673,7 @@ function helperCard(h){
 
             <span class="rating">
                 ${stars(h.rating)}
-                ${Number(h.rating).toFixed(1)}
+                ${Number(h.rating||0).toFixed(1)}
             </span>
 
             <span class="meta-pill">
@@ -562,7 +681,7 @@ function helperCard(h){
             </span>
 
             <span class="meta-pill">
-                ${h.distance} km
+                ${Number(h.distance||0).toFixed(1)} km
             </span>
 
             ${
@@ -580,19 +699,22 @@ function helperCard(h){
 
         <div class="card-services">
             ${escapeHTML(
-                h.services||"Services not added"
+                h.services||
+                "Services not added"
             )}
         </div>
 
 
         <div class="card-actions">
 
-            <button onclick="callHelper('${h.id}')">
+            <button
+                onclick="callHelper('${h.id}')">
                 ☎ Call
             </button>
 
-            <button class="view"
-                    onclick="openDetails('${h.id}')">
+            <button
+                class="view"
+                onclick="openDetails('${h.id}')">
                 VIEW PROFILE →
             </button>
 
@@ -631,45 +753,83 @@ function emptyState(title,text){
 function setupSelects(){
 
     const options=
-        CATEGORIES.map(c=>`
+        CATEGORIES
+        .map(c=>`
 
             <option value="${escapeHTML(c.name)}">
                 ${c.icon} ${escapeHTML(c.name)}
             </option>
 
-        `).join("");
-
-
-    document.getElementById("helperCategory")
-        .innerHTML=
-        `<option value="">Select category</option>${options}`;
-
-
-    document.getElementById("proCategory")
-        .innerHTML=
-        `<option value="">Select category</option>${options}`;
-
-
-    document.getElementById("filterCategory")
-        .innerHTML=
-        `<option value="all">All categories</option>${options}`;
-
-
-    document.getElementById("emergencyCategories")
-        .innerHTML=
-        CATEGORIES.slice(0,10)
-        .map(c=>`
-
-            <button class="emergency-category"
-                onclick="emergencySearch('${escapeHTML(c.name)}')">
-
-                ${c.icon}
-                ${escapeHTML(c.name)}
-
-            </button>
-
         `)
         .join("");
+
+
+    const helperCategory=
+        document.getElementById("helperCategory");
+
+    const proCategory=
+        document.getElementById("proCategory");
+
+    const filterCategory=
+        document.getElementById("filterCategory");
+
+    const emergencyCategories=
+        document.getElementById("emergencyCategories");
+
+
+    if(helperCategory){
+
+        helperCategory.innerHTML=
+            `<option value="">
+                Select category
+            </option>`+
+            options;
+
+    }
+
+
+    if(proCategory){
+
+        proCategory.innerHTML=
+            `<option value="">
+                Select category
+            </option>`+
+            options;
+
+    }
+
+
+    if(filterCategory){
+
+        filterCategory.innerHTML=
+            `<option value="all">
+                All categories
+            </option>`+
+            options;
+
+    }
+
+
+    if(emergencyCategories){
+
+        emergencyCategories.innerHTML=
+            CATEGORIES
+            .slice(0,10)
+            .map(c=>`
+
+                <button
+                    class="emergency-category"
+                    onclick="emergencySearch('${escapeHTML(c.name)}')">
+
+                    ${c.icon}
+                    ${escapeHTML(c.name)}
+
+                </button>
+
+            `)
+            .join("");
+
+    }
 
 }
 
@@ -680,18 +840,29 @@ function setupSelects(){
 
 function openAddHelper(){
 
-    document.getElementById("helperForm").reset();
+    const form=
+        document.getElementById("helperForm");
 
-    document.getElementById("editId").value="";
+    if(form){
+        form.reset();
+    }
+
+
+    document.getElementById("editId")
+        .value="";
+
 
     document.getElementById("modalTitle")
         .textContent="Add Helper";
 
+
     document.getElementById("modalEyebrow")
         .textContent="NEW CONTACT";
 
+
     document.getElementById("formAvatar")
         .textContent="+";
+
 
     document.getElementById("helperModal")
         .classList.add("open");
@@ -701,7 +872,9 @@ function openAddHelper(){
 
 function openEditHelper(id){
 
-    const h=helpers.find(x=>x.id===id);
+    const h=
+        helpers.find(x=>x.id===id);
+
 
     if(!h)return;
 
@@ -737,11 +910,14 @@ function openEditHelper(id){
     document.getElementById("modalTitle")
         .textContent="Edit Helper";
 
+
     document.getElementById("modalEyebrow")
         .textContent="UPDATE PROFILE";
 
+
     document.getElementById("formAvatar")
-        .textContent=getInitials(h.name);
+        .textContent=
+            getInitials(h.name);
 
 
     document.getElementById("helperModal")
@@ -756,7 +932,12 @@ function saveHelper(event){
 
 
     const id=
-        document.getElementById("editId").value;
+        document.getElementById("editId")
+        .value;
+
+
+    const old=
+        helpers.find(h=>h.id===id);
 
 
     const data={
@@ -764,69 +945,97 @@ function saveHelper(event){
         id:id||"helper_"+Date.now(),
 
         name:
-        document.getElementById("helperName")
-        .value.trim(),
+            document
+            .getElementById("helperName")
+            .value.trim(),
 
         category:
-        document.getElementById("helperCategory")
-        .value,
+            document
+            .getElementById("helperCategory")
+            .value,
 
         phone:
-        document.getElementById("helperPhone")
-        .value.trim(),
+            document
+            .getElementById("helperPhone")
+            .value.trim(),
 
         whatsapp:
-        document.getElementById("helperWhatsapp")
-        .value.trim(),
+            document
+            .getElementById("helperWhatsapp")
+            .value.trim(),
 
         area:
-        document.getElementById("helperArea")
-        .value.trim(),
+            document
+            .getElementById("helperArea")
+            .value.trim(),
 
         rating:
-        Number(
-            document.getElementById("helperRating")
-            .value
-        ),
+            Number(
+                document
+                .getElementById("helperRating")
+                .value
+            )||0,
 
         time:
-        document.getElementById("helperTime")
-        .value.trim(),
+            document
+            .getElementById("helperTime")
+            .value.trim(),
 
         price:
-        document.getElementById("helperPrice")
-        .value.trim(),
+            document
+            .getElementById("helperPrice")
+            .value.trim(),
 
         services:
-        document.getElementById("helperServices")
-        .value.trim(),
+            document
+            .getElementById("helperServices")
+            .value.trim(),
 
         source:
-        document.getElementById("helperSource")
-        .value.trim(),
+            document
+            .getElementById("helperSource")
+            .value.trim(),
 
         notes:
-        document.getElementById("helperNotes")
-        .value.trim(),
+            document
+            .getElementById("helperNotes")
+            .value.trim(),
 
         available:
-        document.getElementById("helperAvailable")
-        .checked,
+            document
+            .getElementById("helperAvailable")
+            .checked,
+
+        lat:
+            old?.lat||
+            (26.8467+(Math.random()-.5)*.08),
+
+        lng:
+            old?.lng||
+            (80.9462+(Math.random()-.5)*.08),
 
         distance:
-        Math.round(
-            (.5+Math.random()*6)*10
-        )/10,
+            old?.distance||
+            Math.round(
+                (.5+Math.random()*6)*10
+            )/10,
 
-        favourite:false,
+        favourite:
+            old?.favourite||false,
 
-        reviews:0,
+        reviews:
+            old?.reviews||0,
 
-        trust:70,
+        trust:
+            old?.trust||70,
 
-        experience:"Not specified",
+        experience:
+            old?.experience||
+            "Not specified",
 
-        created:Date.now()
+        created:
+            old?.created||
+            Date.now()
 
     };
 
@@ -834,27 +1043,12 @@ function saveHelper(event){
     if(id){
 
         const index=
-            helpers.findIndex(h=>h.id===id);
+            helpers.findIndex(
+                h=>h.id===id
+            );
+
 
         if(index!==-1){
-
-            data.favourite=
-                helpers[index].favourite;
-
-            data.created=
-                helpers[index].created;
-
-            data.distance=
-                helpers[index].distance;
-
-            data.reviews=
-                helpers[index].reviews||0;
-
-            data.trust=
-                helpers[index].trust||70;
-
-            data.experience=
-                helpers[index].experience||"Not specified";
 
             helpers[index]=data;
 
@@ -878,7 +1072,10 @@ function saveHelper(event){
     renderHome();
     renderHelpers();
     renderDiscover();
+
     updateReminderHelperOptions();
+
+    updateMapMarkers();
 
 }
 
@@ -889,12 +1086,15 @@ function saveHelper(event){
 
 function openDetails(id){
 
-    const h=helpers.find(x=>x.id===id);
+    const h=
+        helpers.find(x=>x.id===id);
+
 
     if(!h)return;
 
 
-    const category=getCategory(h.category);
+    const category=
+        getCategory(h.category);
 
 
     document.getElementById("detailName")
@@ -907,7 +1107,9 @@ function openDetails(id){
         <div class="detail-hero">
 
             <div class="detail-avatar">
-                ${escapeHTML(getInitials(h.name))}
+                ${escapeHTML(
+                    getInitials(h.name)
+                )}
             </div>
 
             <div>
@@ -923,7 +1125,7 @@ function openDetails(id){
 
                 <div class="rating detail-rating">
                     ${stars(h.rating)}
-                    ${Number(h.rating).toFixed(1)}
+                    ${Number(h.rating||0).toFixed(1)}
                 </div>
 
             </div>
@@ -936,56 +1138,71 @@ function openDetails(id){
             <div class="detail-item">
                 <span>PHONE</span>
                 <strong>
-                    ${escapeHTML(h.phone||"Not added")}
+                    ${escapeHTML(
+                        h.phone||"Not added"
+                    )}
                 </strong>
             </div>
 
             <div class="detail-item">
                 <span>WHATSAPP</span>
                 <strong>
-                    ${escapeHTML(h.whatsapp||"Not added")}
+                    ${escapeHTML(
+                        h.whatsapp||"Not added"
+                    )}
                 </strong>
             </div>
 
             <div class="detail-item">
                 <span>AREA</span>
                 <strong>
-                    ⌖ ${escapeHTML(h.area||"Not added")}
+                    ⌖ ${escapeHTML(
+                        h.area||"Not added"
+                    )}
                 </strong>
             </div>
 
             <div class="detail-item">
                 <span>DISTANCE</span>
                 <strong>
-                    ${h.distance} km
+                    ${Number(
+                        h.distance||0
+                    ).toFixed(1)} km
                 </strong>
             </div>
 
             <div class="detail-item">
                 <span>WORKING TIME</span>
                 <strong>
-                    ${escapeHTML(h.time||"Not added")}
+                    ${escapeHTML(
+                        h.time||"Not added"
+                    )}
                 </strong>
             </div>
 
             <div class="detail-item">
                 <span>APPROX. CHARGES</span>
                 <strong>
-                    ${escapeHTML(h.price||"Not added")}
+                    ${escapeHTML(
+                        h.price||"Not added"
+                    )}
                 </strong>
             </div>
 
             <div class="detail-item">
                 <span>EXPERIENCE</span>
                 <strong>
-                    ${escapeHTML(h.experience||"Not specified")}
+                    ${escapeHTML(
+                        h.experience||
+                        "Not specified"
+                    )}
                 </strong>
             </div>
 
             <div class="detail-item">
                 <span>TRUST SCORE</span>
                 <strong>
-                    ${h.trust||70}/100
+                    ${Number(h.trust||70)}/100
                 </strong>
             </div>
 
@@ -997,7 +1214,8 @@ function openDetails(id){
             <strong>Services</strong><br>
 
             ${escapeHTML(
-                h.services||"No services added."
+                h.services||
+                "No services added."
             )}
 
             <br><br>
@@ -1005,7 +1223,8 @@ function openDetails(id){
             <strong>Private notes</strong><br>
 
             ${escapeHTML(
-                h.notes||"No private notes."
+                h.notes||
+                "No private notes."
             )}
 
         </div>
@@ -1013,32 +1232,46 @@ function openDetails(id){
 
         <div class="detail-actions">
 
-            <button class="call"
-                    onclick="callHelper('${h.id}')">
+            <button
+                class="call"
+                onclick="callHelper('${h.id}')">
                 ☎ Call
             </button>
 
-            <button onclick="messageHelper('${h.id}')">
+            <button
+                onclick="messageHelper('${h.id}')">
                 ◉ WhatsApp
             </button>
 
-            <button onclick="openEditHelper('${h.id}')">
+            <button
+                onclick="openEditHelper('${h.id}')">
                 ✎ Edit
             </button>
 
-            <button onclick="openReview('${h.id}')">
+            <button
+                onclick="openReview('${h.id}')">
                 ★ Rate
             </button>
 
-            <button onclick="shareHelper('${h.id}')">
+            <button
+                onclick="shareHelper('${h.id}')">
                 ↗ Share
             </button>
 
-            <button onclick="toggleFavourite('${h.id}')">
-                ${h.favourite?"★ Favourite":"☆ Favourite"}
+            <button
+                onclick="toggleFavourite('${h.id}')">
+                ${h.favourite
+                    ?"★ Favourite"
+                    :"☆ Favourite"}
             </button>
 
-            <button onclick="deleteHelper('${h.id}')">
+            <button
+                onclick="centerOnHelper('${h.id}')">
+                ⌖ Map
+            </button>
+
+            <button
+                onclick="deleteHelper('${h.id}')">
                 Delete
             </button>
 
@@ -1059,19 +1292,26 @@ function openDetails(id){
 
 function toggleFavourite(id){
 
-    const h=helpers.find(x=>x.id===id);
+    const h=
+        helpers.find(x=>x.id===id);
+
 
     if(!h)return;
 
-    h.favourite=!h.favourite;
+
+    h.favourite=
+        !h.favourite;
+
 
     saveHelpers();
+
 
     showToast(
         h.favourite
         ?"Added to favourites."
         :"Removed from favourites."
     );
+
 
     renderHome();
     renderHelpers();
@@ -1086,41 +1326,60 @@ function toggleFavourite(id){
 
 function callHelper(id){
 
-    const h=helpers.find(x=>x.id===id);
+    const h=
+        helpers.find(x=>x.id===id);
+
 
     if(!h)return;
 
+
     if(!h.phone){
 
-        showToast("No phone number saved.");
+        showToast(
+            "No phone number saved."
+        );
 
         return;
 
     }
 
+
     window.location.href=
-        "tel:"+h.phone.replace(/\s/g,"");
+        "tel:"+h.phone.replace(
+            /\s/g,
+            ""
+        );
 
 }
 
 
 function messageHelper(id){
 
-    const h=helpers.find(x=>x.id===id);
+    const h=
+        helpers.find(x=>x.id===id);
+
 
     if(!h)return;
 
+
     const number=
         (h.whatsapp||h.phone||"")
-        .replace(/[^\d]/g,"");
+        .replace(
+            /[^\d]/g,
+            ""
+        );
+
 
     if(!number){
 
-        showToast("No WhatsApp number.");
+        showToast(
+            "No WhatsApp number."
+        );
 
         return;
 
     }
+
 
     window.open(
         "https://wa.me/"+number,
@@ -1132,9 +1391,12 @@ function messageHelper(id){
 
 function shareHelper(id){
 
-    const h=helpers.find(x=>x.id===id);
+    const h=
+        helpers.find(x=>x.id===id);
+
 
     if(!h)return;
+
 
     const text=
         `${h.name} — ${h.category}\n`+
@@ -1161,7 +1423,9 @@ function shareHelper(id){
 
         }
 
-        showToast("Helper information copied.");
+        showToast(
+            "Helper information copied."
+        );
 
     }
 
@@ -1174,9 +1438,12 @@ function shareHelper(id){
 
 function deleteHelper(id){
 
-    const h=helpers.find(x=>x.id===id);
+    const h=
+        helpers.find(x=>x.id===id);
+
 
     if(!h)return;
+
 
     if(!confirm(
         `Delete ${h.name} from your helpers?`
@@ -1184,17 +1451,28 @@ function deleteHelper(id){
 
 
     helpers=
-        helpers.filter(x=>x.id!==id);
+        helpers.filter(
+            x=>x.id!==id
+        );
+
 
     saveHelpers();
 
+
     closeModal("detailsModal");
+
 
     renderHome();
     renderHelpers();
     renderDiscover();
 
-    showToast("Helper deleted.");
+
+    updateMapMarkers();
+
+
+    showToast(
+        "Helper deleted."
+    );
 
 }
 
@@ -1206,101 +1484,149 @@ function deleteHelper(id){
 function renderHelpers(){
 
     const search=
-        document.getElementById("helperSearch")
-        ?.value
+        document.getElementById(
+            "helperSearch"
+        )?.value
         .toLowerCase()
         .trim()||"";
 
 
     const sort=
-        document.getElementById("helperSort")
-        ?.value||"recent";
+        document.getElementById(
+            "helperSort"
+        )?.value||"recent";
 
 
-    let list=helpers.filter(h=>{
+    let list=
+        helpers.filter(h=>{
 
-        const text=
-            `${h.name} ${h.category} ${h.area} ${h.services}`
-            .toLowerCase();
+            const text=
+                `${h.name} ${h.category} ${h.area} ${h.services}`
+                .toLowerCase();
 
-        return(
-            text.includes(search)&&
-            (
-                helperCategoryFilter==="all"||
-                h.category===helperCategoryFilter
-            )
-        );
 
-    });
+            return(
+                text.includes(search)&&
+                (
+                    helperCategoryFilter==="all"||
+                    h.category===helperCategoryFilter
+                )
+            );
+
+        });
 
 
     if(sort==="rating"){
-        list.sort((a,b)=>b.rating-a.rating);
+
+        list.sort(
+            (a,b)=>
+            Number(b.rating)-Number(a.rating)
+        );
+
     }
+
 
     if(sort==="name"){
-        list.sort((a,b)=>
+
+        list.sort(
+            (a,b)=>
             a.name.localeCompare(b.name)
         );
+
     }
+
 
     if(sort==="category"){
-        list.sort((a,b)=>
+
+        list.sort(
+            (a,b)=>
             a.category.localeCompare(b.category)
         );
+
     }
 
+
     if(sort==="recent"){
-        list.sort((a,b)=>b.created-a.created);
+
+        list.sort(
+            (a,b)=>
+            Number(b.created)-Number(a.created)
+        );
+
     }
 
 
     renderHelperTabs();
 
 
-    document.getElementById("helpersGrid")
-        .innerHTML=
-        list.length
-        ?list.map(helperCard).join("")
-        :emptyState(
-            "No helpers found",
-            "Try another search."
+    const grid=
+        document.getElementById(
+            "helpersGrid"
         );
+
+
+    if(grid){
+
+        grid.innerHTML=
+            list.length
+            ?list.map(helperCard).join("")
+            :emptyState(
+                "No helpers found",
+                "Try another search."
+            );
+
+    }
 
 }
 
 
 function renderHelperTabs(){
 
+    const container=
+        document.getElementById(
+            "helperCategoryTabs"
+        );
+
+
+    if(!container)return;
+
+
     const categories=
-        ["all",...new Set(
-            helpers.map(h=>h.category)
-        )];
+        ["all",
+         ...new Set(
+             helpers.map(h=>h.category)
+         )];
 
 
-    document.getElementById("helperCategoryTabs")
-        .innerHTML=
-        categories.map(cat=>`
+    container.innerHTML=
+        categories
+        .map(cat=>`
 
             <button
                 class="category-tab
-                ${helperCategoryFilter===cat?"active":""}"
+                ${helperCategoryFilter===cat
+                    ?"active"
+                    :""}"
                 onclick="setHelperCategory('${escapeHTML(cat)}')">
 
                 ${escapeHTML(
-                    cat==="all"?"All":cat
+                    cat==="all"
+                    ?"All"
+                    :cat
                 )}
 
             </button>
 
-        `).join("");
+        `)
+        .join("");
 
 }
 
 
 function setHelperCategory(category){
 
-    helperCategoryFilter=category;
+    helperCategoryFilter=
+        category;
 
     renderHelpers();
 
@@ -1308,43 +1634,386 @@ function setHelperCategory(category){
 
 
 /* =========================================================
-   DISCOVER
+   REAL MAP
    ========================================================= */
 
-function renderDiscover(){
+function initRealMap(){
+
+    const mapElement=
+        document.getElementById(
+            "mapView"
+        );
+
+
+    if(!mapElement){
+        return;
+    }
+
+
+    if(typeof L==="undefined"){
+
+        console.error(
+            "Leaflet did not load."
+        );
+
+        showToast(
+            "Map library is still loading."
+        );
+
+        return;
+
+    }
+
+
+    if(helperRealMap){
+
+        invalidateRealMap();
+
+        return;
+
+    }
+
+
+    /*
+        Lucknow starting position.
+    */
+
+    helperRealMap=
+        L.map(
+            mapElement,
+            {
+                zoomControl:true,
+                attributionControl:true
+            }
+        )
+        .setView(
+            [26.8467,80.9462],
+            13
+        );
+
+
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            maxZoom:19,
+            attribution:
+                "&copy; OpenStreetMap contributors"
+        }
+    )
+    .addTo(helperRealMap);
+
+
+    addLocateButton();
+
+    addMapLegend();
+
+    updateMapMarkers();
+
+
+    console.log(
+        "HELPER: Real OpenStreetMap loaded"
+    );
+
+}
+
+
+function invalidateRealMap(){
+
+    if(!helperRealMap)return;
+
+    setTimeout(()=>{
+
+        helperRealMap.invalidateSize();
+
+    },100);
+
+}
+
+
+function addLocateButton(){
+
+    if(!helperRealMap)return;
+
+
+    const button=
+        L.control({
+            position:"topright"
+        });
+
+
+    button.onAdd=function(){
+
+        const div=
+            L.DomUtil.create(
+                "div"
+            );
+
+
+        div.innerHTML=`
+
+            <button
+                class="locate-button"
+                title="Find my location">
+                ◎
+            </button>
+
+        `;
+
+
+        L.DomEvent.disableClickPropagation(
+            div
+        );
+
+
+        div.querySelector("button")
+            .addEventListener(
+                "click",
+                locateUser
+            );
+
+
+        return div;
+
+    };
+
+
+    button.addTo(
+        helperRealMap
+    );
+
+}
+
+
+function addMapLegend(){
+
+    if(!helperRealMap)return;
+
+
+    const legend=
+        L.control({
+            position:"bottomleft"
+        });
+
+
+    legend.onAdd=function(){
+
+        const div=
+            L.DomUtil.create(
+                "div",
+                "map-legend"
+            );
+
+
+        div.innerHTML=
+            "<b>●</b> Helper &nbsp; • &nbsp; Real OpenStreetMap";
+
+
+        return div;
+
+    };
+
+
+    legend.addTo(
+        helperRealMap
+    );
+
+}
+
+
+/* =========================================================
+   MAP MARKERS
+   ========================================================= */
+
+function createHelperIcon(category){
+
+    const icon=
+        getCategory(category).icon;
+
+
+    return L.divIcon({
+
+        className:"helper-marker-wrapper",
+
+        html:`
+
+            <div class="helper-marker">
+
+                <span>
+                    ${icon}
+                </span>
+
+            </div>
+
+        `,
+
+        iconSize:[34,34],
+
+        iconAnchor:[17,34],
+
+        popupAnchor:[0,-30]
+
+    });
+
+}
+
+
+function clearHelperMarkers(){
+
+    helperMarkers.forEach(
+        marker=>{
+            if(helperRealMap){
+                helperRealMap.removeLayer(
+                    marker
+                );
+            }
+        }
+    );
+
+
+    helperMarkers=[];
+
+}
+
+
+function updateMapMarkers(){
+
+    if(!helperRealMap)return;
+
+
+    clearHelperMarkers();
+
+
+    const list=
+        getFilteredHelpers();
+
+
+    list.slice(0,100)
+    .forEach(h=>{
+
+        if(
+            typeof h.lat!=="number"||
+            typeof h.lng!=="number"
+        ){
+            return;
+        }
+
+
+        const marker=
+            L.marker(
+                [h.lat,h.lng],
+                {
+                    icon:
+                        createHelperIcon(
+                            h.category
+                        )
+                }
+            );
+
+
+        marker.bindPopup(`
+
+            <div class="map-popup">
+
+                <strong>
+                    ${escapeHTML(h.name)}
+                </strong>
+
+                <span>
+                    ${getCategory(h.category).icon}
+                    ${escapeHTML(h.category)}
+                </span>
+
+                <span>
+                    ⭐ ${Number(h.rating||0).toFixed(1)}
+                </span>
+
+                <span>
+                    📍 ${escapeHTML(h.area||"Local area")}
+                </span>
+
+                <span>
+                    ${Number(h.distance||0).toFixed(1)} km
+                </span>
+
+                <br>
+
+                <button
+                    class="primary-btn"
+                    style="padding:7px 10px;font-size:10px"
+                    onclick="openDetails('${h.id}')">
+                    View profile
+                </button>
+
+            </div>
+
+        `);
+
+
+        marker.on(
+            "click",
+            ()=>{
+                marker.openPopup();
+            }
+        );
+
+
+        marker.addTo(
+            helperRealMap
+        );
+
+
+        helperMarkers.push(
+            marker
+        );
+
+    });
+
+}
+
+
+/* =========================================================
+   FILTER ENGINE
+   ========================================================= */
+
+function getFilteredHelpers(){
 
     const category=
-        document.getElementById("filterCategory")
-        .value;
+        document.getElementById(
+            "filterCategory"
+        )?.value||"all";
 
 
     const minRating=
         Number(
-            document.getElementById("filterRating")
-            .value
+            document.getElementById(
+                "filterRating"
+            )?.value||0
         );
 
 
     const maxDistance=
         Number(
-            document.getElementById("filterDistance")
-            .value
+            document.getElementById(
+                "filterDistance"
+            )?.value||999
         );
 
 
     const availability=
-        document.getElementById("filterAvailability")
-        .value;
+        document.getElementById(
+            "filterAvailability"
+        )?.value||"all";
 
 
     const search=
-        document.getElementById("discoverSearch")
-        .value
+        document.getElementById(
+            "discoverSearch"
+        )?.value
         .toLowerCase()
-        .trim();
+        .trim()||"";
 
 
-    let list=helpers.filter(h=>{
+    return helpers.filter(h=>{
 
         const text=
             `${h.name} ${h.category} ${h.area} ${h.services}`
@@ -1360,7 +2029,7 @@ function renderDiscover(){
 
             &&
 
-            Number(h.rating)>=minRating
+            Number(h.rating||0)>=minRating
 
             &&
 
@@ -1370,10 +2039,12 @@ function renderDiscover(){
 
             (
                 availability==="all"||
+
                 (
                     availability==="now"&&
-                    h.available
+                    !!h.available
                 )||
+
                 availability==="today"
             )
 
@@ -1385,111 +2056,94 @@ function renderDiscover(){
 
     });
 
-
-    list.sort(
-        (a,b)=>
-        Number(a.distance)-Number(b.distance)
-    );
+}
 
 
-    document.getElementById("resultCount")
-        .textContent=
-        `${list.length} helper${list.length===1?"":"s"}`;
+/* =========================================================
+   DISCOVER
+   ========================================================= */
+
+function renderDiscover(){
+
+    const list=
+        getFilteredHelpers()
+        .sort(
+            (a,b)=>
+            Number(a.distance||99)-
+            Number(b.distance||99)
+        );
 
 
-    renderMapPins(list);
+    const count=
+        document.getElementById(
+            "resultCount"
+        );
 
 
-    document.getElementById("discoverList")
-        .innerHTML=
-        list.length
-        ?list.map(helperCard).join("")
-        :emptyState(
-            "No nearby helpers",
-            "Try widening your filters."
+    if(count){
+
+        count.textContent=
+            `${list.length} helper${
+                list.length===1
+                ?""
+                :"s"
+            }`;
+
+    }
+
+
+    const map=
+        document.getElementById(
+            "mapView"
+        );
+
+
+    const discoverList=
+        document.getElementById(
+            "discoverList"
         );
 
 
     if(discoverView==="map"){
 
-        document.getElementById("mapView")
-            .classList.remove("hidden");
+        map?.classList.remove(
+            "hidden"
+        );
 
-        document.getElementById("discoverList")
-            .classList.add("hidden");
+        discoverList?.classList.add(
+            "hidden"
+        );
 
     }else{
 
-        
+        map?.classList.add(
+            "hidden"
+        );
 
-        document.getElementById("discoverList")
-            .classList.remove("hidden");
+        discoverList?.classList.remove(
+            "hidden"
+        );
+
+        if(discoverList){
+
+            discoverList.innerHTML=
+                list.length
+                ?list.map(helperCard).join("")
+                :emptyState(
+                    "No nearby helpers",
+                    "Try widening your filters."
+                );
+
+        }
 
     }
 
-}
 
+    if(helperRealMap){
 
-/* =========================================================
-   MAP
-   ========================================================= */
+        updateMapMarkers();
 
-function renderMapPins(list){
-
-    const container=
-        document.getElementById("mapPins");
-
-
-    container.innerHTML="";
-
-
-    const positions=[
-
-        [21,30],
-        [61,24],
-        [37,64],
-        [78,56],
-        [19,70],
-        [57,76],
-        [82,34],
-        [46,18]
-
-    ];
-
-
-    list.slice(0,8).forEach((h,index)=>{
-
-        const pin=
-            document.createElement("button");
-
-
-        pin.className="map-pin";
-
-
-        const pos=
-            positions[index%positions.length];
-
-
-        pin.style.left=pos[0]+"%";
-        pin.style.top=pos[1]+"%";
-
-
-        pin.innerHTML=
-            `<span>${getCategory(h.category).icon}</span>`;
-
-
-        pin.title=
-            `${h.name} • ${h.category} • ${h.distance} km`;
-
-
-        pin.onclick=()=>{
-            openDetails(h.id);
-        };
-
-
-        container.appendChild(pin);
-
-    });
+    }
 
 }
 
@@ -1498,41 +2152,365 @@ function setDiscoverView(view){
 
     discoverView=view;
 
+
     document.getElementById("mapBtn")
-        .classList.toggle("active",view==="map");
-
-    document.getElementById("listBtn")
-        .classList.toggle("active",view==="list");
-
-    renderDiscover();
-
-}
-
-
-function mapZoom(direction){
-
-    mapScale+=direction*.08;
-
-    mapScale=
-        Math.max(
-            .85,
-            Math.min(1.35,mapScale)
+        ?.classList.toggle(
+            "active",
+            view==="map"
         );
 
 
-    document.getElementById("mapBackground")
-        .style.transform=
-        `scale(${mapScale})`;
+    document.getElementById("listBtn")
+        ?.classList.toggle(
+            "active",
+            view==="list"
+        );
+
+
+    renderDiscover();
+
+
+    if(view==="map"){
+
+        setTimeout(
+            invalidateRealMap,
+            100
+        );
+
+    }
 
 }
 
 
-function resetMap(){
+/* =========================================================
+   GPS
+   ========================================================= */
 
-    mapScale=1;
+function locateUser(){
 
-    document.getElementById("mapBackground")
-        .style.transform="scale(1)";
+    if(!navigator.geolocation){
+
+        showToast(
+            "Location is not supported on this device."
+        );
+
+        return;
+
+    }
+
+
+    showToast(
+        "Requesting your location..."
+    );
+
+
+    navigator.geolocation.getCurrentPosition(
+
+        position=>{
+
+            const lat=
+                position.coords.latitude;
+
+            const lng=
+                position.coords.longitude;
+
+            const accuracy=
+                position.coords.accuracy;
+
+
+            userPosition={
+                lat,
+                lng
+            };
+
+
+            if(!helperRealMap){
+
+                initRealMap();
+
+            }
+
+
+            if(!helperRealMap)return;
+
+
+            if(userMarker){
+
+                helperRealMap.removeLayer(
+                    userMarker
+                );
+
+            }
+
+
+            if(userCircle){
+
+                helperRealMap.removeLayer(
+                    userCircle
+                );
+
+            }
+
+
+            const icon=
+                L.divIcon({
+
+                    className:"user-marker-wrapper",
+
+                    html:
+                        `<div class="user-marker"></div>`,
+
+                    iconSize:[18,18],
+
+                    iconAnchor:[9,9]
+
+                });
+
+
+            userMarker=
+                L.marker(
+                    [lat,lng],
+                    {
+                        icon:icon
+                    }
+                )
+                .addTo(
+                    helperRealMap
+                )
+                .bindPopup(
+                    "You are here"
+                );
+
+
+            userCircle=
+                L.circle(
+                    [lat,lng],
+                    {
+                        radius:accuracy,
+                        color:"#268cff",
+                        fillOpacity:.06,
+                        weight:1
+                    }
+                )
+                .addTo(
+                    helperRealMap
+                );
+
+
+            helperRealMap.setView(
+                [lat,lng],
+                15
+            );
+
+
+            updateDistancesFromUser();
+
+
+            showToast(
+                "Your location found."
+            );
+
+        },
+
+        error=>{
+
+            let message=
+                "Could not get your location.";
+
+
+            if(error.code===1){
+
+                message=
+                    "Location permission was denied.";
+
+            }
+
+
+            if(error.code===2){
+
+                message=
+                    "Your location is unavailable.";
+
+            }
+
+
+            if(error.code===3){
+
+                message=
+                    "Location request timed out.";
+
+            }
+
+
+            showToast(message);
+
+        },
+
+        {
+            enableHighAccuracy:true,
+            timeout:10000,
+            maximumAge:30000
+        }
+
+    );
+
+}
+
+
+/* =========================================================
+   DISTANCE
+   ========================================================= */
+
+function distanceKm(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+){
+
+    const R=6371;
+
+    const dLat=
+        (lat2-lat1)*
+        Math.PI/180;
+
+    const dLon=
+        (lon2-lon1)*
+        Math.PI/180;
+
+
+    const a=
+        Math.sin(dLat/2)*
+        Math.sin(dLat/2)+
+        Math.cos(
+            lat1*Math.PI/180
+        )*
+        Math.cos(
+            lat2*Math.PI/180
+        )*
+        Math.sin(dLon/2)*
+        Math.sin(dLon/2);
+
+
+    const c=
+        2*Math.atan2(
+            Math.sqrt(a),
+            Math.sqrt(1-a)
+        );
+
+
+    return R*c;
+
+}
+
+
+function updateDistancesFromUser(){
+
+    if(!userPosition)return;
+
+
+    helpers.forEach(h=>{
+
+        if(
+            typeof h.lat==="number"&&
+            typeof h.lng==="number"
+        ){
+
+            h.distance=
+                Math.round(
+                    distanceKm(
+                        userPosition.lat,
+                        userPosition.lng,
+                        h.lat,
+                        h.lng
+                    )*10
+                )/10;
+
+        }
+
+    });
+
+
+    saveHelpers();
+
+
+    renderDiscover();
+
+
+    renderHelpers();
+
+
+    renderHome();
+
+}
+
+
+/* =========================================================
+   CENTER MAP
+   ========================================================= */
+
+function centerOnHelper(id){
+
+    const h=
+        helpers.find(
+            x=>x.id===id
+        );
+
+
+    if(!h)return;
+
+
+    showPage("discover");
+
+
+    setTimeout(()=>{
+
+        if(!helperRealMap){
+
+            initRealMap();
+
+        }
+
+
+        if(
+            helperRealMap&&
+            typeof h.lat==="number"&&
+            typeof h.lng==="number"
+        ){
+
+            helperRealMap.setView(
+                [h.lat,h.lng],
+                16
+            );
+
+
+            const marker=
+                helperMarkers.find(
+                    m=>{
+                        const p=
+                            m.getLatLng();
+
+                        return(
+                            Math.abs(
+                                p.lat-h.lat
+                            )<0.00001&&
+                            Math.abs(
+                                p.lng-h.lng
+                            )<0.00001
+                            );
+                    }
+                );
+
+
+            if(marker){
+
+                marker.openPopup();
+
+            }
+
+        }
+
+    },250);
 
 }
 
@@ -1554,15 +2532,17 @@ function getAllProfessionals(){
 function renderMarketplace(){
 
     const search=
-        document.getElementById("marketSearch")
-        .value
+        document.getElementById(
+            "marketSearch"
+        )?.value
         .toLowerCase()
-        .trim();
+        .trim()||"";
 
 
     const sort=
-        document.getElementById("marketSort")
-        .value;
+        document.getElementById(
+            "marketSort"
+        )?.value||"rating";
 
 
     let list=
@@ -1579,26 +2559,57 @@ function renderMarketplace(){
 
 
     if(sort==="rating"){
-        list.sort((a,b)=>b.rating-a.rating);
+
+        list.sort(
+            (a,b)=>
+            Number(b.rating)-
+            Number(a.rating)
+        );
+
     }
+
 
     if(sort==="distance"){
-        list.sort((a,b)=>a.distance-b.distance);
+
+        list.sort(
+            (a,b)=>
+            Number(a.distance)-
+            Number(b.distance)
+        );
+
     }
+
 
     if(sort==="reviews"){
-        list.sort((a,b)=>b.reviews-a.reviews);
+
+        list.sort(
+            (a,b)=>
+            Number(b.reviews)-
+            Number(a.reviews)
+        );
+
     }
 
 
-    document.getElementById("marketplaceGrid")
-        .innerHTML=
-        list.length
-        ?list.map(professionalCard).join("")
-        :emptyState(
-            "No professional helpers found",
-            "Try another search."
+    const grid=
+        document.getElementById(
+            "marketplaceGrid"
         );
+
+
+    if(grid){
+
+        grid.innerHTML=
+            list.length
+            ?list.map(
+                professionalCard
+            ).join("")
+            :emptyState(
+                "No professional helpers found",
+                "Try another search."
+            );
+
+    }
 
 }
 
@@ -1616,7 +2627,9 @@ function professionalCard(p){
         <div class="pro-header">
 
             <div class="helper-avatar">
-                ${escapeHTML(getInitials(p.name))}
+                ${escapeHTML(
+                    getInitials(p.name)
+                )}
             </div>
 
             <div>
@@ -1667,13 +2680,23 @@ function professionalCard(p){
         <div class="pro-trust">
 
             <div>
-                <strong>${p.rating}</strong>
-                <span> ★ rating</span>
+                <strong>
+                    ${Number(p.rating).toFixed(1)}
+                </strong>
+
+                <span>
+                    ★ rating
+                </span>
             </div>
 
             <div>
-                <strong>${p.trust}</strong>
-                <span>/100 trust</span>
+                <strong>
+                    ${p.trust}
+                </strong>
+
+                <span>
+                    /100 trust
+                </span>
             </div>
 
         </div>
@@ -1693,12 +2716,16 @@ function professionalCard(p){
 
             <div class="pro-detail">
                 <small>EXPERIENCE</small>
-                <strong>${escapeHTML(p.experience)}</strong>
+                <strong>
+                    ${escapeHTML(p.experience)}
+                </strong>
             </div>
 
             <div class="pro-detail">
                 <small>STARTING</small>
-                <strong>${escapeHTML(p.price)}</strong>
+                <strong>
+                    ${escapeHTML(p.price)}
+                </strong>
             </div>
 
         </div>
@@ -1711,12 +2738,14 @@ function professionalCard(p){
 
         <div class="card-actions">
 
-            <button onclick="callProfessional('${p.id}')">
+            <button
+                onclick="callProfessional('${p.id}')">
                 ☎ CALL
             </button>
 
-            <button class="view"
-                    onclick="viewProfessional('${p.id}')">
+            <button
+                class="view"
+                onclick="viewProfessional('${p.id}')">
                 VIEW PROFILE
             </button>
 
@@ -1731,8 +2760,10 @@ function professionalCard(p){
 
 function openProfessionalForm(){
 
-    document.getElementById("professionalModal")
-        .classList.add("open");
+    document.getElementById(
+        "professionalModal"
+    )
+    .classList.add("open");
 
 }
 
@@ -1744,34 +2775,53 @@ function createProfessional(event){
 
     const professional={
 
-        id:"pro_"+Date.now(),
+        id:
+            "pro_"+Date.now(),
 
         name:
-        document.getElementById("proName").value.trim(),
+            document
+            .getElementById("proName")
+            .value.trim(),
 
         category:
-        document.getElementById("proCategory").value,
+            document
+            .getElementById("proCategory")
+            .value,
 
         phone:
-        document.getElementById("proPhone").value.trim(),
+            document
+            .getElementById("proPhone")
+            .value.trim(),
 
         area:
-        document.getElementById("proArea").value.trim(),
+            document
+            .getElementById("proArea")
+            .value.trim(),
 
         services:
-        document.getElementById("proServices").value.trim(),
+            document
+            .getElementById("proServices")
+            .value.trim(),
 
         experience:
-        document.getElementById("proExperience").value.trim(),
+            document
+            .getElementById("proExperience")
+            .value.trim(),
 
         price:
-        document.getElementById("proPrice").value.trim(),
+            document
+            .getElementById("proPrice")
+            .value.trim(),
 
         time:
-        document.getElementById("proTime").value.trim(),
+            document
+            .getElementById("proTime")
+            .value.trim(),
 
         emergency:
-        document.getElementById("proEmergency").value==="yes",
+            document
+            .getElementById("proEmergency")
+            .value==="yes",
 
         rating:5,
 
@@ -1786,17 +2836,28 @@ function createProfessional(event){
     };
 
 
-    userProfessionals.push(professional);
+    userProfessionals.push(
+        professional
+    );
+
 
     saveProfessionals();
 
-    closeModal("professionalModal");
 
-    document.querySelector("#professionalModal form")
-        .reset();
+    closeModal(
+        "professionalModal"
+    );
+
+
+    document.querySelector(
+        "#professionalModal form"
+    )?.reset();
+
 
     renderMarketplace();
+
     renderHome();
+
 
     showToast(
         "Professional profile created."
@@ -1815,27 +2876,38 @@ function findProfessional(id){
 
 function callProfessional(id){
 
-    const p=findProfessional(id);
+    const p=
+        findProfessional(id);
+
 
     if(!p)return;
 
+
     if(!p.phone){
 
-        showToast("No phone number.");
+        showToast(
+            "No phone number."
+        );
 
         return;
 
     }
 
+
     window.location.href=
-        "tel:"+p.phone.replace(/\s/g,"");
+        "tel:"+p.phone.replace(
+            /\s/g,
+            ""
+        );
 
 }
 
 
 function viewProfessional(id){
 
-    const p=findProfessional(id);
+    const p=
+        findProfessional(id);
+
 
     if(!p)return;
 
@@ -1864,36 +2936,56 @@ function viewProfessional(id){
 
 function openReview(id){
 
-    document.getElementById("reviewHelperId")
-        .value=id;
+    document.getElementById(
+        "reviewHelperId"
+    ).value=id;
+
 
     selectedReviewRating=0;
 
-    document.getElementById("reviewText")
-        .value="";
 
-    document.querySelectorAll(".rating-picker button")
-        .forEach(b=>b.classList.remove("selected"));
+    document.getElementById(
+        "reviewText"
+    ).value="";
 
-    document.getElementById("reviewModal")
-        .classList.add("open");
+
+    document.querySelectorAll(
+        ".rating-picker button"
+    )
+    .forEach(
+        b=>b.classList.remove(
+            "selected"
+        )
+    );
+
+
+    document.getElementById(
+        "reviewModal"
+    )
+    .classList.add("open");
 
 }
 
 
 function selectRating(number){
 
-    selectedReviewRating=number;
+    selectedReviewRating=
+        number;
 
-    document.querySelectorAll(".rating-picker button")
-        .forEach((button,index)=>{
+
+    document.querySelectorAll(
+        ".rating-picker button"
+    )
+    .forEach(
+        (button,index)=>{
 
             button.classList.toggle(
                 "selected",
                 index<number
             );
 
-        });
+        }
+    );
 
 }
 
@@ -1901,11 +2993,15 @@ function selectRating(number){
 function submitReview(){
 
     const id=
-        document.getElementById("reviewHelperId")
-        .value;
+        document.getElementById(
+            "reviewHelperId"
+        ).value;
 
 
-    const h=helpers.find(x=>x.id===id);
+    const h=
+        helpers.find(
+            x=>x.id===id
+        );
 
 
     if(!h)return;
@@ -1913,16 +3009,13 @@ function submitReview(){
 
     if(!selectedReviewRating){
 
-        showToast("Choose a rating first.");
+        showToast(
+            "Choose a rating first."
+        );
 
         return;
 
     }
-
-
-    const text=
-        document.getElementById("reviewText")
-        .value.trim();
 
 
     const oldReviews=
@@ -1930,7 +3023,7 @@ function submitReview(){
 
 
     const oldRating=
-        Number(h.rating);
+        Number(h.rating||0);
 
 
     h.rating=
@@ -1943,7 +3036,8 @@ function submitReview(){
         ).toFixed(1);
 
 
-    h.reviews=oldReviews+1;
+    h.reviews=
+        oldReviews+1;
 
 
     if(selectedReviewRating>=4){
@@ -1959,16 +3053,24 @@ function submitReview(){
 
     saveHelpers();
 
-    closeModal("reviewModal");
+
+    closeModal(
+        "reviewModal"
+    );
+
+
+    closeModal(
+        "detailsModal"
+    );
+
 
     renderHome();
     renderHelpers();
     renderDiscover();
 
+
     showToast(
-        text
-        ?"Review saved."
-        :"Rating saved."
+        "Rating saved."
     );
 
 }
@@ -1980,34 +3082,46 @@ function submitReview(){
 
 function openEmergency(){
 
-    document.getElementById("emergencyModal")
-        .classList.add("open");
+    document.getElementById(
+        "emergencyModal"
+    )
+    .classList.add("open");
 
 }
 
 
 function emergencySearch(category){
 
-    closeModal("emergencyModal");
+    closeModal(
+        "emergencyModal"
+    );
 
-    showPage("discover");
+
+    showPage(
+        "discover"
+    );
 
 
     setTimeout(()=>{
 
-        document.getElementById("filterCategory")
-            .value=category;
+        document.getElementById(
+            "filterCategory"
+        ).value=category;
 
-        document.getElementById("filterAvailability")
-            .value="now";
+
+        document.getElementById(
+            "filterAvailability"
+        ).value="now";
+
 
         renderDiscover();
+
 
         showToast(
             `Searching available ${category.toLowerCase()} helpers.`
         );
 
-    },50);
+    },100);
 
 }
 
@@ -2019,11 +3133,18 @@ function emergencySearch(category){
 function updateReminderHelperOptions(){
 
     const select=
-        document.getElementById("reminderHelper");
+        document.getElementById(
+            "reminderHelper"
+        );
+
+
+    if(!select)return;
 
 
     select.innerHTML=
-        `<option value="">Select helper</option>`+
+        `<option value="">
+            Select helper
+        </option>`+
         helpers.map(h=>`
 
             <option value="${h.id}">
@@ -2032,7 +3153,8 @@ function updateReminderHelperOptions(){
                 ${escapeHTML(h.category)}
             </option>
 
-        `).join("");
+        `)
+        .join("");
 
 }
 
@@ -2040,22 +3162,30 @@ function updateReminderHelperOptions(){
 function addReminder(){
 
     const title=
-        document.getElementById("reminderTitle")
+        document.getElementById(
+            "reminderTitle"
+        )
         .value.trim();
 
 
     const date=
-        document.getElementById("reminderDate")
+        document.getElementById(
+            "reminderDate"
+        )
         .value;
 
 
     const time=
-        document.getElementById("reminderTime")
+        document.getElementById(
+            "reminderTime"
+        )
         .value;
 
 
     const helper=
-        document.getElementById("reminderHelper")
+        document.getElementById(
+            "reminderHelper"
+        )
         .value;
 
 
@@ -2072,7 +3202,8 @@ function addReminder(){
 
     reminders.push({
 
-        id:"rem_"+Date.now(),
+        id:
+            "rem_"+Date.now(),
 
         title:title,
 
@@ -2090,22 +3221,32 @@ function addReminder(){
     saveReminders();
 
 
-    document.getElementById("reminderTitle")
-        .value="";
+    document.getElementById(
+        "reminderTitle"
+    ).value="";
 
-    document.getElementById("reminderDate")
-        .value="";
 
-    document.getElementById("reminderTime")
-        .value="";
+    document.getElementById(
+        "reminderDate"
+    ).value="";
 
-    document.getElementById("reminderHelper")
-        .value="";
+
+    document.getElementById(
+        "reminderTime"
+    ).value="";
+
+
+    document.getElementById(
+        "reminderHelper"
+    ).value="";
 
 
     renderReminders();
 
-    showToast("Reminder added.");
+
+    showToast(
+        "Reminder added."
+    );
 
 }
 
@@ -2116,15 +3257,28 @@ function renderReminders(){
 
 
     const container=
-        document.getElementById("remindersList");
+        document.getElementById(
+            "remindersList"
+        );
+
+
+    if(!container)return;
 
 
     const sorted=
         [...reminders]
         .sort(
             (a,b)=>
-            new Date(a.date)-
-            new Date(b.date)
+            new Date(
+                a.date+
+                "T"+
+                (a.time||"00:00")
+            )-
+            new Date(
+                b.date+
+                "T"+
+                (b.time||"00:00")
+            )
         );
 
 
@@ -2145,7 +3299,9 @@ function renderReminders(){
         sorted.map(r=>{
 
             const d=
-                new Date(r.date+"T00:00");
+                new Date(
+                    r.date+"T00:00"
+                );
 
 
             const helper=
@@ -2167,7 +3323,9 @@ function renderReminders(){
                         <small>
                             ${d.toLocaleString(
                                 "en",
-                                {month:"short"}
+                                {
+                                    month:"short"
+                                }
                             ).toUpperCase()}
                         </small>
 
@@ -2176,7 +3334,9 @@ function renderReminders(){
                     <div class="reminder-info">
 
                         <strong>
-                            ${escapeHTML(r.title)}
+                            ${escapeHTML(
+                                r.title
+                            )}
                         </strong>
 
                         <small>
@@ -2189,7 +3349,9 @@ function renderReminders(){
 
                             ${
                                 helper
-                                ?escapeHTML(helper.name)
+                                ?escapeHTML(
+                                    helper.name
+                                )
                                 :"No helper selected"
                             }
 
@@ -2207,7 +3369,8 @@ function renderReminders(){
 
             `;
 
-        }).join("");
+        })
+        .join("");
 
 }
 
@@ -2219,17 +3382,22 @@ function deleteReminder(id){
             r=>r.id!==id
         );
 
+
     saveReminders();
+
 
     renderReminders();
 
-    showToast("Reminder deleted.");
+
+    showToast(
+        "Reminder deleted."
+    );
 
 }
 
 
 /* =========================================================
-   PROFILE / SETTINGS
+   PROFILE
    ========================================================= */
 
 function renderProfile(){
@@ -2237,13 +3405,35 @@ function renderProfile(){
     const name=
         localStorage.getItem(
             "helper_profile_name"
+        )||
+        "My Helper Network";
+
+
+    const profileName=
+        document.getElementById(
+            "profileName"
         );
 
 
-    if(name){
+    if(profileName){
 
-        document.getElementById("profileName")
-            .textContent=name;
+        profileName.textContent=
+            name;
+
+    }
+
+
+    const avatar=
+        document.getElementById(
+            "profileAvatar"
+        );
+
+
+    if(avatar){
+
+        avatar.textContent=
+            getInitials(name)||
+            "H";
 
     }
 
@@ -2254,8 +3444,34 @@ function renderProfile(){
         )==="1";
 
 
-    document.getElementById("appLockToggle")
-        .checked=locked;
+    const lockToggle=
+        document.getElementById(
+            "appLockToggle"
+        );
+
+
+    if(lockToggle){
+
+        lockToggle.checked=
+            locked;
+
+    }
+
+
+    const themeToggle=
+        document.getElementById(
+            "themeToggle"
+        );
+
+
+    if(themeToggle){
+
+        themeToggle.checked=
+            document.body.classList.contains(
+                "light"
+            );
+
+    }
 
 }
 
@@ -2276,16 +3492,23 @@ function editProfile(){
         );
 
 
-    if(name&&name.trim()){
+    if(
+        name&&
+        name.trim()
+    ){
 
         localStorage.setItem(
             "helper_profile_name",
             name.trim()
         );
 
+
         renderProfile();
 
-        showToast("Profile updated.");
+
+        showToast(
+            "Profile updated."
+        );
 
     }
 
@@ -2308,17 +3531,26 @@ function changeArea(){
         );
 
 
-    if(area&&area.trim()){
+    if(
+        area&&
+        area.trim()
+    ){
 
         localStorage.setItem(
             "helper_area",
             area.trim()
         );
 
-        document.getElementById("areaName")
-            .textContent=area.trim();
 
-        showToast("Discovery area updated.");
+        document.getElementById(
+            "areaName"
+        ).textContent=
+            area.trim();
+
+
+        showToast(
+            "Discovery area updated."
+        );
 
     }
 
@@ -2335,8 +3567,10 @@ function loadArea(){
 
     if(area){
 
-        document.getElementById("areaName")
-            .textContent=area;
+        document.getElementById(
+            "areaName"
+        ).textContent=
+            area;
 
     }
 
@@ -2349,18 +3583,24 @@ function loadArea(){
 
 function toggleTheme(){
 
-    document.body.classList.toggle("light");
+    document.body.classList.toggle(
+        "light"
+    );
 
 
     const light=
-        document.body.classList
-        .contains("light");
+        document.body.classList.contains(
+            "light"
+        );
 
 
     localStorage.setItem(
         "helper_light_mode",
         light?"1":"0"
     );
+
+
+    renderProfile();
 
 
     showToast(
@@ -2378,9 +3618,14 @@ function toggleTheme(){
 
 function toggleAppLock(){
 
+    const toggle=
+        document.getElementById(
+            "appLockToggle"
+        );
+
+
     const enabled=
-        document.getElementById("appLockToggle")
-        .checked;
+        toggle?.checked;
 
 
     if(enabled){
@@ -2398,7 +3643,11 @@ function toggleAppLock(){
                 "1"
             );
 
-            showToast("App Lock enabled.");
+
+            showToast(
+                "App Lock enabled."
+            );
+
 
             return;
 
@@ -2411,15 +3660,18 @@ function toggleAppLock(){
             );
 
 
-        if(!pin||!/^\d{4}$/.test(pin)){
+        if(
+            !pin||
+            !/^\d{4}$/.test(pin)
+        ){
 
-            document.getElementById(
-                "appLockToggle"
-            ).checked=false;
+            toggle.checked=false;
+
 
             showToast(
                 "PIN must contain exactly 4 numbers."
             );
+
 
             return;
 
@@ -2434,11 +3686,13 @@ function toggleAppLock(){
 
         if(pin!==confirmPin){
 
-            document.getElementById(
-                "appLockToggle"
-            ).checked=false;
+            toggle.checked=false;
 
-            showToast("PINs do not match.");
+
+            showToast(
+                "PINs do not match."
+            );
+
 
             return;
 
@@ -2467,6 +3721,7 @@ function toggleAppLock(){
             "helper_app_lock"
         );
 
+
         showToast(
             "App Lock disabled."
         );
@@ -2490,10 +3745,17 @@ function checkAppLock(){
         );
 
 
-    if(enabled&&pin){
+    if(
+        enabled&&
+        pin
+    ){
 
-        document.getElementById("lockScreen")
-            .classList.remove("hidden");
+        document.getElementById(
+            "lockScreen"
+        )
+        .classList.remove(
+            "hidden"
+        );
 
     }
 
@@ -2503,8 +3765,9 @@ function checkAppLock(){
 function unlockApp(){
 
     const entered=
-        document.getElementById("unlockPin")
-        .value;
+        document.getElementById(
+            "unlockPin"
+        ).value;
 
 
     const correct=
@@ -2515,59 +3778,38 @@ function unlockApp(){
 
     if(entered===correct){
 
-        document.getElementById("lockScreen")
-            .classList.add("hidden");
+        document.getElementById(
+            "lockScreen"
+        )
+        .classList.add(
+            "hidden"
+        );
 
-        document.getElementById("unlockPin")
-            .value="";
 
-        document.getElementById("lockError")
-            .textContent="";
+        document.getElementById(
+            "unlockPin"
+        ).value="";
+
+
+        document.getElementById(
+            "lockError"
+        ).textContent="";
 
     }else{
 
-        document.getElementById("lockError")
-            .textContent="Incorrect PIN.";
+        document.getElementById(
+            "lockError"
+        ).textContent=
+            "Incorrect PIN.";
 
-        document.getElementById("unlockPin")
-            .value="";
+
+        document.getElementById(
+            "unlockPin"
+        ).value="";
 
     }
 
 }
-
-
-document.getElementById("unlockPin")
-?.addEventListener(
-    "input",
-    function(){
-
-        const dots=
-            document.querySelectorAll(
-                "#pinDots span"
-            );
-
-
-        dots.forEach(
-            (dot,index)=>{
-
-                dot.classList.toggle(
-                    "active",
-                    index<this.value.length
-                );
-
-            }
-        );
-
-
-        if(this.value.length===4){
-
-            unlockApp();
-
-        }
-
-    }
-);
 
 
 /* =========================================================
@@ -2578,7 +3820,8 @@ function openNotifications(){
 
     document.getElementById(
         "notificationModal"
-    ).classList.add("open");
+    )
+    .classList.add("open");
 
 }
 
@@ -2595,23 +3838,34 @@ function closeModal(id){
 }
 
 
-document.querySelectorAll(".modal-overlay")
-.forEach(overlay=>{
+function setupModals(){
 
-    overlay.addEventListener(
-        "click",
-        event=>{
+    document.querySelectorAll(
+        ".modal-overlay"
+    )
+    .forEach(overlay=>{
 
-            if(event.target===overlay){
+        overlay.addEventListener(
+            "click",
+            event=>{
 
-                overlay.classList.remove("open");
+                if(
+                    event.target===
+                    overlay
+                ){
+
+                    overlay.classList.remove(
+                        "open"
+                    );
+
+                }
 
             }
+        );
 
-        }
-    );
+    });
 
-});
+}
 
 
 /* =========================================================
@@ -2620,16 +3874,24 @@ document.querySelectorAll(".modal-overlay")
 
 function toggleSidebar(){
 
-    document.querySelector(".sidebar")
-        .classList.toggle("open");
+    document.querySelector(
+        ".sidebar"
+    )
+    ?.classList.toggle(
+        "open"
+    );
 
 }
 
 
 function closeSidebar(){
 
-    document.querySelector(".sidebar")
-        .classList.remove("open");
+    document.querySelector(
+        ".sidebar"
+    )
+    ?.classList.remove(
+        "open"
+    );
 
 }
 
@@ -2657,6 +3919,7 @@ function clearAllData(){
         "helper_professionals"
     );
 
+
     helpers=[];
 
     reminders=[];
@@ -2665,10 +3928,16 @@ function clearAllData(){
 
 
     renderHome();
+
     renderHelpers();
+
     renderDiscover();
+
     renderMarketplace();
+
     renderReminders();
+
+    updateMapMarkers();
 
 
     showToast(
@@ -2684,7 +3953,28 @@ function clearAllData(){
 
 function initialize(){
 
+    /*
+        Apply saved theme first.
+    */
+
+    if(
+        localStorage.getItem(
+            "helper_light_mode"
+        )==="1"
+    ){
+
+        document.body.classList.add(
+            "light"
+        );
+
+    }
+
+
+    setupNavigation();
+
     setupSelects();
+
+    setupModals();
 
     loadArea();
 
@@ -2701,90 +3991,85 @@ function initialize(){
     renderProfile();
 
 
-    document.getElementById("reminderDate")
-        .min=
-        new Date()
-        .toISOString()
-        .split("T")[0];
+    const reminderDate=
+        document.getElementById(
+            "reminderDate"
+        );
 
 
-    if(
-        localStorage.getItem(
-            "helper_light_mode"
-        )==="1"
-    ){
+    if(reminderDate){
 
-        document.body.classList.add("light");
+        reminderDate.min=
+            new Date()
+            .toISOString()
+            .split("T")[0];
+
+    }
+
+
+    const unlockPin=
+        document.getElementById(
+            "unlockPin"
+        );
+
+
+    if(unlockPin){
+
+        unlockPin.addEventListener(
+            "input",
+            function(){
+
+                const dots=
+                    document.querySelectorAll(
+                        "#pinDots span"
+                    );
+
+
+                dots.forEach(
+                    (dot,index)=>{
+
+                        dot.classList.toggle(
+                            "active",
+                            index<
+                            this.value.length
+                        );
+
+                    }
+                );
+
+
+                if(
+                    this.value.length===4
+                ){
+
+                    unlockApp();
+
+                }
+
+            }
+        );
 
     }
 
 
     checkAppLock();
 
-}
 
+    /*
+        Do NOT create the map immediately
+        because Discover may be hidden.
 
-initialize();
-// =============================
-// HELPER REAL OPENSTREETMAP
-// =============================
+        It is created when Discover opens.
+    */
 
-let helperRealMap = null;
-
-function initRealMap() {
-
-    const mapElement = document.getElementById("mapView");
-
-    // Stop if map container doesn't exist
-    if (!mapElement) {
-        console.log("HELPER: mapView not found");
-        return;
-    }
-
-    // Stop if Leaflet library didn't load
-    if (typeof L === "undefined") {
-        console.log("HELPER: Leaflet not loaded");
-        return;
-    }
-
-    // Prevent creating the map twice
-    if (helperRealMap) {
-        helperRealMap.invalidateSize();
-        return;
-    }
-
-    // Create real map
-    helperRealMap = L.map(mapElement).setView(
-        [26.8467, 80.9462],
-        13
+    console.log(
+        "HELPER 5.0 initialized"
     );
 
-    // Add OpenStreetMap
-    L.tileLayer(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-            maxZoom: 19,
-            attribution: "© OpenStreetMap contributors"
-        }
-    ).addTo(helperRealMap);
-
-    console.log("HELPER: Real map loaded");
 }
 
 
-// Start after the page is completely loaded
-window.addEventListener("load", function () {
-    setTimeout(function () {
-        initRealMap();
-    }, 500);
-});
-
-document.addEventListener("click", function () {
-    setTimeout(function () {
-        if (helperRealMap) {
-            helperRealMap.invalidateSize();
-        } else {
-            initRealMap();
-        }
-    }, 300);
-});
+document.addEventListener(
+    "DOMContentLoaded",
+    initialize
+);
