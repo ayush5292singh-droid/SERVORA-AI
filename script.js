@@ -2777,5 +2777,15 @@ function initRealMap() {
 window.addEventListener("load", function () {
     setTimeout(function () {
         initRealMap();
+    }, 500);
+});
+
+document.addEventListener("click", function () {
+    setTimeout(function () {
+        if (helperRealMap) {
+            helperRealMap.invalidateSize();
+        } else {
+            initRealMap();
+        }
     }, 300);
 });
