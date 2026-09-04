@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="theme-color" content="#07110e">
+<title>HELPER 5.0</title>
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div id="toast"></div>
+
+<!-- APP LOCK -->
+<div id="lockScreen" class="lock-screen hidden">
+    <div class="lock-card">
+        <div class="lock-logo">H</div>
+        <div class="eyebrow">PRIVATE ACCESS</div>
+        <h1>HELPER</h1>
+        <p>Your helper network is locked.</p>
+
+        <div class="pin-dots" id="pinDots">
+            <span></span><span></span><span></span><span></span>
+        </div>
+
+        <input id="unlockPin"
+               type="password"
+               inputmode="numeric"
+               maxlength="4"
+               placeholder="Enter 4-digit PIN">
+
+        <button class="primary-btn full" onclick="unlockApp()">
+            Unlock
+        </button>
+
+        <small id="lockError"></small>
+    </div>
+</div>
+
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+
+    <div class="brand">
+        <div class="brand-logo">H</div>
+        <div>
+            <strong>HELPER</strong>
+            <small>VERSION 5.0</small>
+        </div>
+    </div>
+
+    <nav>
+
+        <button class="nav-btn active" data-page="home">
+            <b>⌂</b><span>Home</span>
+        </button>
+
+        <button class="nav-btn" data-page="discover">
+            <b>⌕</b><span>Discover</span>
+        </button>
+
+        <button class="nav-btn" data-page="helpers">
+            <b>♙</b><span>My Helpers</span>
+        </button>
+
+        <button class="nav-btn" data-page="marketplace">
+            <b>◆</b><span>Marketplace</span>
+        </button>
+
+        <button class="nav-btn" data-page="bookings">
+            <b>◷</b><span>Bookings</span>
+        </button>
+
+        <button class="nav-btn" data-page="profile">
+            <b>⚙</b><span>Settings</span>
+        </button>
+
+    </nav>
+
+    <div class="sidebar-bottom">
+        <button class="emergency-small" onclick="openEmergency()">
+            ⚠ Emergency Help
+        </button>
+    </div>
+
+</aside>
+
+
+<!-- MAIN -->
+<main class="main">
+
+<header class="topbar">
+
+    <button class="mobile-menu" onclick="toggleSidebar()">☰</button>
+
+    <div class="location">
+        <span>⌖</span>
+        <div>
+            <small>DISCOVERY AREA</small>
+            <strong id="areaName">Aliganj, Lucknow</strong>
+        </div>
+    </div>
+
+    <div class="top-actions">
+        <button class="icon-btn" onclick="openNotifications()">♧</button>
+        <button class="avatar" onclick="showPage('profile')">A</button>
+    </div>
+
+</header>
+
+
+<!-- HOME -->
+<section class="page active" id="page-home">
+
+    <div class="hero">
+
+        <div class="hero-copy">
+            <span class="eyebrow">LOCAL HELPER NETWORK</span>
+
+            <h1>
+                Find help.<br>
+                <span>Save trust.</span>
+            </h1>
+
+            <p>
+                Store trusted helpers, discover local services,
+                compare profiles and keep everything organised.
+            </p>
+
+            <div class="hero-actions">
+                <button class="primary-btn" onclick="openAddHelper()">
+                    ＋ Add Helper
+                </button>
+
+                <button class="secondary-btn"
+                        onclick="showPage('discover')">
+                    ⌕ Need a Helper
+                </button>
+            </div>
+        </div>
+
+        <div class="hero-orb">
+            <div class="orb">
+                <div class="orb-center">H</div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <div class="stats-grid">
+
+        <div class="stat-card">
+            <span>MY HELPERS</span>
+            <strong id="statHelpers">0</strong>
+            <small>Saved contacts</small>
+        </div>
+
+        <div class="stat-card">
+            <span>FAVOURITES</span>
+            <strong id="statFav">0</strong>
+            <small>Trusted people</small>
+        </div>
+
+        <div class="stat-card">
+            <span>DISCOVERED</span>
+            <strong id="statMarketplace">0</strong>
+            <small>Local profiles</small>
+        </div>
+
+        <div class="stat-card">
+            <span>TRUST RATING</span>
+            <strong id="statRating">—</strong>
+            <small>Your network</small>
+        </div>
+
+    </div>
+
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow">QUICK SEARCH</span>
+            <h2>What do you need?</h2>
+        </div>
+        <button class="text-btn" onclick="showPage('discover')">
+            View all →
+        </button>
+    </div>
+
+    <div class="category-grid" id="quickCategories"></div>
+
+
+    <div class="section-head">
+        <div>
+            <span class="eyebrow">YOUR NETWORK</span>
+            <h2>Recent helpers</h2>
+        </div>
+
+        <button class="text-btn" onclick="showPage('helpers')">
+            View all →
+        </button>
+    </div>
+
+    <div class="helper-grid" id="homeHelpers"></div>
+
+</section>
+
+
+<!-- DISCOVER -->
+<section class="page" id="page-discover">
+
+    <div class="page-heading">
+
+        <div>
+            <span class="eyebrow">LOCAL DISCOVERY</span>
+            <h1>Need a Helper?</h1>
+            <p>Search helpers around your selected area.</p>
+        </div>
+
+        <button class="danger-action" onclick="openEmergency()">
+            ⚠ Emergency
+        </button>
+
+    </div>
+
+
+    <div class="finder-panel">
+
+        <div class="finder-title">
+
+            <div class="finder-icon">⌕</div>
+
+            <div>
+                <strong>Smart Helper Finder</strong>
+                <small>Choose your requirements</small>
+            </div>
+
+        </div>
+
+
+        <div class="filters">
+
+            <label>
+                Helper type
+
+                <select id="filterCategory"></select>
+            </label>
+
+            <label>
+                Minimum rating
+
+                <select id="filterRating">
+                    <option value="0">Any rating</option>
+                    <option value="3">3.0+</option>
+                    <option value="4">4.0+</option>
+                    <option value="4.5">4.5+</option>
+                    <option value="4.8">4.8+</option>
+                </select>
+            </label>
+
+            <label>
+                Distance
+
+                <select id="filterDistance">
+                    <option value="100">Any distance</option>
+                    <option value="1">Within 1 km</option>
+                    <option value="3">Within 3 km</option>
+                    <option value="5">Within 5 km</option>
+                    <option value="10">Within 10 km</option>
+                </select>
+            </label>
+
+            <label>
+                Availability
+
+                <select id="filterAvailability">
+                    <option value="all">Any time</option>
+                    <option value="now">Available now</option>
+                    <option value="today">Available today</option>
+                </select>
+            </label>
+
+        </div>
+
+
+        <div class="finder-bottom">
+
+            <div class="search-box">
+                <span>⌕</span>
+
+                <input id="discoverSearch"
+                       placeholder="Search name, service or area..."
+                       oninput="renderDiscover()">
+            </div>
+
+            <button class="primary-btn" onclick="renderDiscover()">
+                FIND HELPERS
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="view-toolbar">
+
+        <div>
+            <strong id="resultCount">0 helpers</strong>
+            <span> matching your requirements</span>
+        </div>
+
+        <div class="view-switch">
+
+            <button id="mapBtn"
+                    class="view-btn active"
+                    onclick="setDiscoverView('map')">
+                ⌖ Map
+            </button>
+
+            <button id="listBtn"
+                    class="view-btn"
+                    onclick="setDiscoverView('list')">
+                ☷ List
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- MAP -->
+    <div id="mapView" class="map-view">
+
+        <div class="map-background" id="mapBackground">
+
+            <div class="road road-a"></div>
+            <div class="road road-b"></div>
+            <div class="road road-c"></div>
+            <div class="road road-d"></div>
+            <div class="road road-e"></div>
+
+            <div class="park park-a">GREEN PARK</div>
+            <div class="park park-b">CITY GARDEN</div>
+
+            <span class="map-label l1">ALIGANJ</span>
+            <span class="map-label l2">MAHANAGAR</span>
+            <span class="map-label l3">SECTOR C</span>
+            <span class="map-label l4">LUCKNOW</span>
+
+            <div class="user-location">●</div>
+
+            <div id="mapPins"></div>
+
+            <div class="map-controls">
+
+                <button onclick="mapZoom(1)">＋</button>
+                <button onclick="mapZoom(-1)">−</button>
+                <button onclick="resetMap()">⌾</button>
+
+            </div>
+
+        </div>
+
+        <div class="map-status">
+            <i></i>
+            Local discovery mode
+            <small>API not connected</small>
+        </div>
+
+    </div>
+
+
+    <div id="discoverList"
+         class="helper-grid hidden">
+    </div>
+
+</section>
+
+
+<!-- MY HELPERS -->
+<section class="page" id="page-helpers">
+
+    <div class="page-heading">
+
+        <div>
+            <span class="eyebrow">PERSONAL NETWORK</span>
+            <h1>My Helpers</h1>
+            <p>Your saved trusted helpers.</p>
+        </div>
+
+        <button class="primary-btn" onclick="openAddHelper()">
+            ＋ Add Helper
+        </button>
+
+    </div>
+
+
+    <div class="search-row">
+
+        <div class="big-search">
+            <span>⌕</span>
+
+            <input id="helperSearch"
+                   placeholder="Search your helpers..."
+                   oninput="renderHelpers()">
+        </div>
+
+        <select id="helperSort" onchange="renderHelpers()">
+            <option value="recent">Recently added</option>
+            <option value="rating">Highest rated</option>
+            <option value="name">Name</option>
+            <option value="category">Category</option>
+        </select>
+
+    </div>
+
+
+    <div class="category-tabs" id="helperCategoryTabs"></div>
+
+    <div class="helper-grid" id="helpersGrid"></div>
+
+</section>
+
+
+<!-- MARKETPLACE -->
+<section class="page" id="page-marketplace">
+
+    <div class="page-heading">
+
+        <div>
+            <span class="eyebrow">PROFESSIONAL NETWORK</span>
+            <h1>Marketplace</h1>
+            <p>Explore local professional helper profiles.</p>
+        </div>
+
+        <button class="primary-btn"
+                onclick="openProfessionalForm()">
+            ＋ Become a Helper
+        </button>
+
+    </div>
+
+
+    <div class="market-banner">
+
+        <div>
+            <span class="eyebrow">HELPER PROFESSIONAL</span>
+            <h2>Find people who can actually help.</h2>
+            <p>
+                Compare ratings, services, experience,
+                availability and trust information.
+            </p>
+        </div>
+
+        <div class="banner-icon">◆</div>
+
+    </div>
+
+
+    <div class="market-tools">
+
+        <div class="big-search">
+            <span>⌕</span>
+
+            <input id="marketSearch"
+                   placeholder="Search professional helpers..."
+                   oninput="renderMarketplace()">
+        </div>
+
+        <select id="marketSort"
+                onchange="renderMarketplace()">
+
+            <option value="rating">Highest rated</option>
+            <option value="distance">Nearest</option>
+            <option value="reviews">Most reviewed</option>
+
+        </select>
+
+    </div>
+
+
+    <div class="helper-grid"
+         id="marketplaceGrid">
+    </div>
+
+</section>
+
+
+<!-- BOOKINGS -->
+<section class="page" id="page-bookings">
+
+    <div class="page-heading">
+
+        <div>
+            <span class="eyebrow">PLANNING</span>
+            <h1>Bookings & Reminders</h1>
+            <p>Keep track of helper appointments.</p>
+        </div>
+
+    </div>
+
+
+    <div class="booking-layout">
+
+        <div class="booking-card">
+
+            <div class="card-header">
+
+                <div>
+                    <span class="eyebrow">NEW REMINDER</span>
+                    <h2>Schedule service</h2>
+                </div>
+
+                <div class="header-icon">◷</div>
+
+            </div>
+
+            <input id="reminderTitle"
+                   placeholder="e.g. AC service">
+
+            <input id="reminderDate"
+                   type="date">
+
+            <input id="reminderTime"
+                   type="time">
+
+            <select id="reminderHelper">
+                <option value="">Select helper</option>
+            </select>
+
+            <button class="primary-btn full"
+                    onclick="addReminder()">
+                ＋ Add Reminder
+            </button>
+
+        </div>
+
+
+        <div class="booking-card">
+
+            <div class="card-header">
+
+                <div>
+                    <span class="eyebrow">UPCOMING</span>
+                    <h2>Your schedule</h2>
+                </div>
+
+            </div>
+
+            <div id="remindersList"></div>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- SETTINGS -->
+<section class="page" id="page-profile">
+
+    <div class="page-heading">
+
+        <div>
+            <span class="eyebrow">CONTROL CENTER</span>
+            <h1>Settings</h1>
+            <p>Control your HELPER experience.</p>
+        </div>
+
+    </div>
+
+
+    <div class="settings-layout">
+
+        <div class="profile-card">
+
+            <div class="large-avatar">A</div>
+
+            <h2 id="profileName">My Helper Network</h2>
+
+            <p>Personal HELPER account</p>
+
+            <button class="secondary-btn"
+                    onclick="editProfile()">
+                Edit profile
+            </button>
+
+        </div>
+
+
+        <div class="settings-card">
+
+            <!-- APP LOCK -->
+            <div class="setting-row">
+
+                <div class="setting-icon">🔒</div>
+
+                <div class="setting-info">
+                    <strong>App Lock</strong>
+                    <small>
+                        Require a PIN whenever HELPER is opened.
+                    </small>
+                </div>
+
+                <label class="switch">
+                    <input id="appLockToggle"
+                           type="checkbox"
+                           onchange="toggleAppLock()">
+                    <span></span>
+                </label>
+
+            </div>
+
+
+            <div class="setting-row">
+
+                <div class="setting-icon">⌖</div>
+
+                <div class="setting-info">
+                    <strong>Discovery Area</strong>
+                    <small>
+                        Area used for local helper discovery.
+                    </small>
+                </div>
+
+                <button class="small-btn"
+                        onclick="changeArea()">
+                    Change
+                </button>
+
+            </div>
+
+
+            <div class="setting-row">
+
+                <div class="setting-icon">☾</div>
+
+                <div class="setting-info">
+                    <strong>Appearance</strong>
+                    <small>
+                        Switch between dark and light mode.
+                    </small>
+                </div>
+
+                <button class="small-btn"
+                        onclick="toggleTheme()">
+                    Toggle
+                </button>
+
+            </div>
+
+
+            <div class="setting-row">
+
+                <div class="setting-icon">♧</div>
+
+                <div class="setting-info">
+                    <strong>Notifications</strong>
+                    <small>
+                        Reminders and updates.
+                    </small>
+                </div>
+
+                <label class="switch">
+                    <input id="notificationToggle"
+                           type="checkbox"
+                           checked>
+                    <span></span>
+                </label>
+
+            </div>
+
+
+            <div class="setting-row">
+
+                <div class="setting-icon">◈</div>
+
+                <div class="setting-info">
+                    <strong>Data Storage</strong>
+                    <small>
+                        Your current MVP data is stored on this device.
+                    </small>
+                </div>
+
+                <span class="local-badge">LOCAL</span>
+
+            </div>
+
+
+            <div class="setting-row danger-row">
+
+                <div class="setting-icon">⌫</div>
+
+                <div class="setting-info">
+                    <strong>Delete Local Data</strong>
+                    <small>
+                        Remove helpers, reminders and local settings.
+                    </small>
+                </div>
+
+                <button class="danger-btn"
+                        onclick="clearAllData()">
+                    Delete
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="trust-box">
+
+        <div class="trust-icon">✓</div>
+
+        <div>
+            <strong>Privacy first</strong>
+
+            <p>
+                Personal helper information in this MVP stays
+                on this device. Public profiles, accounts,
+                real maps and cloud storage will be connected later.
+            </p>
+        </div>
+
+    </div>
+
+</section>
+
+</main>
+
+
+<!-- ADD HELPER MODAL -->
+<div class="modal-overlay" id="helperModal">
+
+<div class="modal">
+
+    <div class="modal-head">
+
+        <div>
+            <span class="eyebrow" id="modalEyebrow">
+                NEW CONTACT
+            </span>
+
+            <h2 id="modalTitle">
+                Add Helper
+            </h2>
+        </div>
+
+        <button class="close-btn"
+                onclick="closeModal('helperModal')">
+            ×
+        </button>
+
+    </div>
+
+
+    <form id="helperForm"
+          onsubmit="saveHelper(event)">
+
+        <input type="hidden" id="editId">
+
+        <div class="form-avatar-row">
+
+            <div class="form-avatar"
+                 id="formAvatar">
+                +
+            </div>
+
+            <div>
+                <strong>Helper information</strong>
+
+                <small>
+                    Save enough information to find them later.
+                </small>
+            </div>
+
+        </div>
+
+
+        <div class="form-grid">
+
+            <label>
+                Name *
+                <input id="helperName"
+                       required
+                       placeholder="Rajesh Kumar">
+            </label>
+
+            <label>
+                Category *
+                <select id="helperCategory"
+                        required>
+                </select>
+            </label>
+
+            <label>
+                Phone *
+                <input id="helperPhone"
+                       required
+                       type="tel"
+                       placeholder="+91 98765 43210">
+            </label>
+
+            <label>
+                WhatsApp
+                <input id="helperWhatsapp"
+                       type="tel"
+                       placeholder="Optional">
+            </label>
+
+            <label>
+                Area
+                <input id="helperArea"
+                       placeholder="Aliganj">
+            </label>
+
+            <label>
+                Rating
+                <select id="helperRating">
+                    <option value="5">★★★★★ 5.0</option>
+                    <option value="4.8">★★★★★ 4.8</option>
+                    <option value="4.5">★★★★☆ 4.5</option>
+                    <option value="4">★★★★☆ 4.0</option>
+                    <option value="3.5">★★★☆☆ 3.5</option>
+                    <option value="3">★★★☆☆ 3.0</option>
+                </select>
+            </label>
+
+            <label>
+                Working time
+                <input id="helperTime"
+                       placeholder="9 AM – 6 PM">
+            </label>
+
+            <label>
+                Approx. charges
+                <input id="helperPrice"
+                       placeholder="₹300 onwards">
+            </label>
+
+            <label class="full-field">
+                Services
+                <input id="helperServices"
+                       placeholder="Tap repair, leakage, bathroom fittings">
+            </label>
+
+            <label class="full-field">
+                How do you know them?
+                <input id="helperSource"
+                       placeholder="Family recommendation">
+            </label>
+
+            <label class="full-field">
+                Private notes
+                <textarea id="helperNotes"
+                          placeholder="Your personal notes..."></textarea>
+            </label>
+
+            <label class="availability-check">
+                <input id="helperAvailable"
+                       type="checkbox"
+                       checked>
+                Available now
+            </label>
+
+        </div>
+
+
+        <button class="primary-btn full"
+                type="submit">
+            SAVE HELPER
+        </button>
+
+    </form>
+
+</div>
+</div>
+
+
+<!-- DETAILS -->
+<div class="modal-overlay" id="detailsModal">
+
+<div class="modal">
+
+    <div class="modal-head">
+
+        <div>
+            <span class="eyebrow">HELPER PROFILE</span>
+            <h2 id="detailName">Helper</h2>
+        </div>
+
+        <button class="close-btn"
+                onclick="closeModal('detailsModal')">
+            ×
+        </button>
+
+    </div>
+
+    <div id="detailContent"></div>
+
+</div>
+</div>
+
+
+<!-- PROFESSIONAL PROFILE -->
+<div class="modal-overlay" id="professionalModal">
+
+<div class="modal">
+
+    <div class="modal-head">
+
+        <div>
+            <span class="eyebrow">PROFESSIONAL PROFILE</span>
+            <h2>Become a Helper</h2>
+        </div>
+
+        <button class="close-btn"
+                onclick="closeModal('professionalModal')">
+            ×
+        </button>
+
+    </div>
+
+
+    <form onsubmit="createProfessional(event)">
+
+        <div class="form-grid">
+
+            <label>
+                Name *
+                <input id="proName"
+                       required
+                       placeholder="Your name">
+            </label>
+
+            <label>
+                Category *
+                <select id="proCategory"
+                        required>
+                </select>
+            </label>
+
+            <label>
+                Phone *
+                <input id="proPhone"
+                       required
+                       type="tel">
+            </label>
+
+            <label>
+                Service area
+                <input id="proArea"
+                       placeholder="Aliganj">
+            </label>
+
+            <label class="full-field">
+                Services
+                <input id="proServices"
+                       placeholder="Describe your services">
+            </label>
+
+            <label>
+                Experience
+                <input id="proExperience"
+                       placeholder="e.g. 8 years">
+            </label>
+
+            <label>
+                Starting price
+                <input id="proPrice"
+                       placeholder="₹300 onwards">
+            </label>
+
+            <label>
+                Working hours
+                <input id="proTime"
+                       placeholder="9 AM – 7 PM">
+            </label>
+
+            <label>
+                Emergency service
+                <select id="proEmergency">
+                    <option value="yes">Available</option>
+                    <option value="no">Not available</option>
+                </select>
+            </label>
+
+        </div>
+
+        <button class="primary-btn full"
+                type="submit">
+            CREATE PROFESSIONAL PROFILE
+        </button>
+
+    </form>
+
+</div>
+</div>
+
+
+<!-- REVIEW -->
+<div class="modal-overlay" id="reviewModal">
+
+<div class="modal small-modal">
+
+    <div class="modal-head">
+
+        <div>
+            <span class="eyebrow">YOUR EXPERIENCE</span>
+            <h2>Rate Helper</h2>
+        </div>
+
+        <button class="close-btn"
+                onclick="closeModal('reviewModal')">
+            ×
+        </button>
+
+    </div>
+
+    <input type="hidden" id="reviewHelperId">
+
+    <div class="rating-picker"
+         id="ratingPicker">
+
+        <button onclick="selectRating(1)">★</button>
+        <button onclick="selectRating(2)">★</button>
+        <button onclick="selectRating(3)">★</button>
+        <button onclick="selectRating(4)">★</button>
+        <button onclick="selectRating(5)">★</button>
+
+    </div>
+
+    <textarea id="reviewText"
+              placeholder="Write your experience..."></textarea>
+
+    <button class="primary-btn full"
+            onclick="submitReview()">
+        SUBMIT REVIEW
+    </button>
+
+</div>
+</div>
+
+
+<!-- EMERGENCY -->
+<div class="modal-overlay" id="emergencyModal">
+
+<div class="modal small-modal">
+
+    <div class="emergency-header">
+
+        <div class="emergency-symbol">!</div>
+
+        <div>
+            <span class="eyebrow">FAST DISCOVERY</span>
+            <h2>Need help now?</h2>
+        </div>
+
+    </div>
+
+    <p class="muted-text">
+        Choose the type of service you need.
+    </p>
+
+    <div class="emergency-grid"
+         id="emergencyCategories">
+    </div>
+
+    <button class="secondary-btn full"
+            onclick="closeModal('emergencyModal')">
+        Cancel
+    </button>
+
+</div>
+</div>
+
+
+<!-- NOTIFICATIONS -->
+<div class="modal-overlay" id="notificationModal">
+
+<div class="modal small-modal">
+
+    <div class="modal-head">
+        <h2>Notifications</h2>
+
+        <button class="close-btn"
+                onclick="closeModal('notificationModal')">
+            ×
+        </button>
+    </div>
+
+    <div class="notification-item">
+        <span>✓</span>
+        <div>
+            <strong>HELPER 5.0 is ready</strong>
+            <p>
+                Your local helper network is active.
+            </p>
+        </div>
+    </div>
+
+    <div class="notification-item">
+        <span>⌖</span>
+        <div>
+            <strong>Map API waiting</strong>
+            <p>
+                The map is currently running without an external API.
+            </p>
+        </div>
+    </div>
+
+</div>
+</div>
+
+
+<script src="script.js"></script>
+
+</body>
+</html>
